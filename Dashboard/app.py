@@ -75,11 +75,15 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 
 # 5. Alt Kısım: Anomali Detay Tablosu
-st.header("🚨 3. Tespit Edilen Anomaliler (Detaylı Liste)")
-st.write(f"Seçilen algoritma toplam **{len(anomalies)}** adet anomali tespit etti.")
+st.header("🚨 3. Tespit Edilen ve Kaçırılan Anomaliler (Detaylı Liste)")
+
+# Tabloda HEM gerçekten anomali olanları HEM DE modelin anomali sandıklarını gösterelim
+table_data = df[(df['Is_Anomaly'] == True) | (df[anomaly_col] == True)].copy()
+
+st.write(f"Seçilen algoritma grafikte **{len(anomalies)}** adet anomali tespit etti. Aşağıdaki tabloda modelin başarı durumunu detaylı görebilirsiniz.")
 
 # Ekranda sadece anlaşılır ve gerekli kolonları gösterelim
-display_df = anomalies[['Date', 'DailyCost_USD', 'Residual', 'Is_Anomaly', anomaly_col]].copy()
+display_df = table_data[['Date', 'DailyCost_USD', 'Residual', 'Is_Anomaly', anomaly_col]].copy()
 
 # Sayıları daha şık görünmesi için formatlayalım
 display_df['DailyCost_USD'] = display_df['DailyCost_USD'].apply(lambda x: f"${x:,.2f}")

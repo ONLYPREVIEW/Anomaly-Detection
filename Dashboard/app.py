@@ -1,18 +1,18 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 # 1. Sayfa Ayarları (Tam Ekran ve Başlık)
 st.set_page_config(page_title="Cloud Cost Anomaly Detector", layout="wide", page_icon="☁️")
 
 st.title("☁️ Automated Cloud Cost Anomaly Detection Dashboard")
 st.markdown("**Proje Ekibi:** Emir Ata Karagenç, Tolga Türkmen, Zeki Zafer Aydınlı")
+st.markdown("**Proje Seviyesi:** Level 1 Standard - Phase 1 & Phase 2 Bütünleşik Sunumu")
 st.markdown("---")
 
 # 2. İşlenmiş Veriyi Yükleme
-
 def load_data():
-    # Bir önceki aşamada kaydettiğimiz analizli veriyi okuyoruz
     df = pd.read_csv('Data/processed_cur_data.csv')
     return df
 
@@ -32,7 +32,7 @@ col3.metric("Ortalama Günlük Maliyet", f"${avg_cost:,.2f}")
 st.markdown("---")
 
 # 4. Orta Kısım: İnteraktif Grafik ve Model Seçimi
-st.header("📈 2. Anomali Tespiti ve Görselleştirme")
+st.header("📈 2. Anomali Tespiti ve Model Karşılaştırması")
 
 # Kullanıcının modeli seçebileceği açılır menü
 model_choice = st.selectbox(
@@ -47,6 +47,20 @@ elif model_choice == "Isolation Forest (Makine Öğrenmesi)":
     anomaly_col = 'IsoForest_Anomaly'
 else:
     anomaly_col = 'ZScore_Anomaly'
+
+# --- PHASE 2: CANLI METRİK HESAPLAMA ---
+y_true = df['Is_Anomaly']
+y_pred = df[anomaly_col]
+
+precision = precision_score(y_true, y_pred, zero_division=0)
+recall = recall_score(y_true, y_pred, zero_division=0)
+f1 = f1_score(y_true, y_pred, zero_division=0)
+
+# Metrikleri grafiğin üstünde gösterelim 
+m1, m2, m3 = st.columns(3)
+m1.metric("🎯 Precision (Kesinlik)", f"{precision:.2f}", help="Modelin bulduğu anomalilerin ne kadarının GERÇEK anomali olduğunu (Yanlış Alarmları) ölçer.")
+m2.metric("🔍 Recall (Duyarlılık)", f"{recall:.2f}", help="Sistemdeki toplam gerçek anomalilerin ne kadarını YAKALAYABİLDİĞİMİZİ ölçer.")
+m3.metric("🏆 F1-Score (Genel Başarı)", f"{f1:.2f}", help="Precision ve Recall değerlerinin Harmonik Ortalamasıdır. Sistemin genel dengesini gösterir.")
 
 # Plotly ile İnteraktif Grafik Çizimi
 fig = go.Figure()
@@ -69,27 +83,48 @@ fig.update_layout(
     hovermode="x unified",
     template="plotly_white"
 )
-
 st.plotly_chart(fig, use_container_width=True)
+
+
+with st.expander(f"📚 {model_choice} - Matematiksel Arka Plan ve Çalışma Mantığı", expanded=False):
+    if model_choice == "STL Decomposition (Önerilen Model)":
+        st.markdown("""
+        **Neden Öneriyoruz?** STL, zaman serisindeki mevsimselliği (hafta sonu düşüşlerini vb.) anladığı için en kararlı modeldir.
+        - **Formül:** $Y_t = T_t + S_t + R_t$ (Fatura = Trend + Mevsimsellik + Sapma/Artık)
+        - **Çalışma Mantığı:** Sistem $R_t$ (Sapma) değerini izole eder. Eğer bu değer serinin standart sapmasının 3 katını aşarsa proaktif olarak anomali uyarısı fırlatır.
+        - **Sonuç:** Sinsi (Contextual) anomalileri mükemmel yakalar.
+        """)
+    elif model_choice == "Z-Score (İstatistiksel)":
+        st.markdown("""
+        **Model Değerlendirmesi:** Z-Score, faturanın ortalamadan ne kadar uzaklaştığına bakan basit bir istatistiksel yöntemdir.
+        - **Formül:** $Z = (X - \mu) / \sigma$ 
+        - **Zaafları:** Bu model verideki haftalık döngüleri (Mevsimsellik) anlayamaz. Bu yüzden hafta sonuna denk gelen sinsi bir maliyet artışını normal bir hafta içi faturası zannedip es geçebilir (Recall değerini düşürür).
+        """)
+    else:
+        st.markdown("""
+        **Model Değerlendirmesi:** Isolation Forest, veriyi rastgele kesmelerle izole etmeye çalışan ağaç tabanlı bir Makine Öğrenmesi algoritmasıdır.
+        - **Formül:** $s(x, n) = 2^{-E(h(x)) / c(n)}$
+        - **Zaafları:** Çok boyutlu karmaşık verilerde harika çalışsa da, bulut faturaları gibi tek boyutlu finansal zaman serilerinde **fazla hassas** davranabilir. Normal günlere de "Anomali" diyerek yanlış alarm (False Positive) üretebilir (Precision değerini düşürür).
+        """)
 
 st.markdown("---")
 
 # 5. Alt Kısım: Anomali Detay Tablosu
 st.header("🚨 3. Tespit Edilen ve Kaçırılan Anomaliler (Detaylı Liste)")
 
-# Tabloda HEM gerçekten anomali olanları HEM DE modelin anomali sandıklarını gösterelim
+
 table_data = df[(df['Is_Anomaly'] == True) | (df[anomaly_col] == True)].copy()
 
 st.write(f"Seçilen algoritma grafikte **{len(anomalies)}** adet anomali tespit etti. Aşağıdaki tabloda modelin başarı durumunu detaylı görebilirsiniz.")
 
-# Ekranda sadece anlaşılır ve gerekli kolonları gösterelim
+
 display_df = table_data[['Date', 'DailyCost_USD', 'Residual', 'Is_Anomaly', anomaly_col]].copy()
 
-# Sayıları daha şık görünmesi için formatlayalım
+
 display_df['DailyCost_USD'] = display_df['DailyCost_USD'].apply(lambda x: f"${x:,.2f}")
 display_df['Residual'] = display_df['Residual'].apply(lambda x: f"{x:,.2f}")
 
-# True/False (Checkbox) değerlerini net okunur Emojili metinlere çevirelim
+
 display_df['Is_Anomaly'] = display_df['Is_Anomaly'].map({True: '✅ Evet', False: '❌ Hayır'})
 display_df[anomaly_col] = display_df[anomaly_col].map({True: '✅ Tespit Edildi', False: '❌ Kaçırıldı'})
 

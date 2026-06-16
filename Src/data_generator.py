@@ -10,26 +10,25 @@ def generate_synthetic_cur(start_date='2025-01-01', end_date='2026-05-01', outpu
     trend = np.linspace(0, 50, n_days)
     seasonality = np.where(dates.weekday < 5, 20.0, -15.0)
 
-    # Gürültüyü sabitleyelim ki her çalıştırdığımızda aynı şık sonucu versin
+    # Gürültüyü sabitleme
     np.random.seed(42)
     noise = np.random.normal(0, 5, n_days)
 
     total_cost = base_cost + trend + seasonality + noise
     is_anomaly = np.zeros(n_days, dtype=bool)
     
-    # 52. indeks tam bir Cumartesi gününe denk geliyor! Onu sinsi anomali yapacağız.
+    
     anomaly_indices = [52, 120, 200, 300, 350, 410]
     
     for idx in anomaly_indices:
         is_anomaly[idx] = True
         
         if idx == 52:
-            # SİNSİ ANOMALİ: Hafta sonuna 65 dolarlık ufak bir sıçrama ekliyoruz.
-            # Z-Score bunu "Normal bir hafta içi faturası" sanıp es geçecek.
-            # Ancak STL, "Cumartesi günü bu kadar harcama olamaz" deyip yakalayacak!
+            # SİNSİ ANOMALİ: Hafta sonuna 85 dolarlık ufak bir sıçrama ekliyoruz.
+
             total_cost[idx] += 85 
         else:
-            # Diğerleri devasa sıçramalar, bunları hepsi yakalar
+
             total_cost[idx] += np.random.uniform(150, 250) 
 
     df = pd.DataFrame({
